@@ -185,7 +185,6 @@ export default class MongoDbConnection implements IDatabaseAdapter {
         _id: "response.insertedId.toString()",
       };
     } catch (error) {
-      console.log(error);
       if (error instanceof MongoServerError) {
         throw new MongoError(error);
       }
@@ -220,14 +219,29 @@ export default class MongoDbConnection implements IDatabaseAdapter {
       throw new Error("Collection not found");
     }
 
+    let search = {};
+    if(query.search) {
+      for(const key in query.search) {
+        search = { ...search, [key]: { $regex: query.search[key], $options: 'i'} }
+      }  
+    }
+
     const readOptions = options as FindOptions;
     const cursor = this._collection
-      .find(query.filter ?? {}, readOptions)
+      .find({ ...query.filter, ...search }, readOptions)
       .limit(limit(query.pageSize))
       .skip(skip(page(query.page), limit(query.pageSize)));
 
-    if (sort(query.sort)) {
-      cursor.sort(sort(query.sort));
+    let querySort: string[] = [];
+    if(query.sort) {
+      for(const key in query.sort) {
+        querySort.push(`${query.sort[key] === 'desc' ? '-' : ''}${key}`);
+      }  
+    }
+
+    const sortBy = querySort.join(",");
+    if (sort(sortBy)) {
+      cursor.sort(sort(sortBy));
     }
 
     if (fields(query.fields, query.restrictedFields)) {
